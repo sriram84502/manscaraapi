@@ -9,7 +9,10 @@ dotenv.config();
 // Init app
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: 'https://manscara.v0.app',
+  credentials: true
+}));
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
