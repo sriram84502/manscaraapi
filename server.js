@@ -10,7 +10,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 app.use(cors({
-  origin: 'https://manscara.v0.app',
+  origin: 'https://kzmk65g41y0u5hes3ibb.lite.vusercontent.net',
   credentials: true
 }));
 const helmet = require('helmet');
