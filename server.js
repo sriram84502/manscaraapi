@@ -1,0 +1,50 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
+const cors = require('cors');
+
+// Load config
+dotenv.config();
+
+// Init app
+const app = express();
+app.use(express.json());
+app.use(cors());
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+app.use(helmet());
+
+const limiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 100,
+});
+app.use(limiter);
+
+// Connect DB
+mongoose.connect(process.env.MONGO_URI).then(() => console.log('MongoDB connected'))
+  .catch(err => console.error(err));
+
+// Log incoming requests
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.originalUrl}`);
+    next();
+  });
+  app.get('/', (req, res) => {
+    res.send('Server is working!');
+  });
+    
+// Routes
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/cart', require('./routes/cartRoutes'));
+app.use('/api/payments', require('./routes/paymentRoutes'));
+app.use('/api/orders', require('./routes/orderRoutes'));
+app.use('/api/coupons', require('./routes/couponRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/reviews', require('./routes/reviewRoutes'));
+// Add other route files similarly
+
+const PORT = process.env.PORT || 5050;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
