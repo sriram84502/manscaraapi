@@ -14,15 +14,7 @@ app.use(cors({
   credentials: true
 }));
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-
 app.use(helmet());
-
-const limiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 100,
-});
-app.use(limiter);
 
 // Connect DB
 mongoose.connect(process.env.MONGO_URI).then(() => console.log('MongoDB connected'))
