@@ -197,38 +197,76 @@ exports.downloadInvoice = async (req, res) => {
 
 // Admin: Update order status
 exports.updateOrderStatus = async (req, res) => {
-    try {
-      const { status, trackingUrl } = req.body;
-      const order = await Order.findById(req.params.id).populate('user');
-  
-      if (!order) {
-        return res.status(404).json({ success: false, message: 'Order not found' });
-      }
-  
-      order.status = status;
-      if (status === 'Shipped' && trackingUrl) {
-        order.trackingUrl = trackingUrl;
-      }
-  
-      await order.save();
-  
-      // WhatsApp message generation
-      const phone = order.shippingAddress.phone.replace(/[^0-9]/g, '');
-      const message = encodeURIComponent(
-        `Hi ${order.shippingAddress.firstName}, your order #${order._id} has been marked as *${status}*.\n\nTrack your package here: ${order.trackingUrl}`
-      );
-      const whatsappLink = `https://wa.me/91${phone}?text=${message}`;
-  
-      res.json({
-        success: true,
-        message: 'Order status updated',
-        data: {
-          order,
-          whatsappLink
-        }
-      });
-    } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
+  try {
+    const { status, trackingUrl } = req.body;
+    const order = await Order.findById(req.params.id).populate('user');
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
     }
-  };
+
+    order.status = status;
+    if (status === 'Shipped' && trackingUrl) {
+      order.trackingUrl = trackingUrl;
+    }
+
+    await order.save();
+
+    // Format phone number
+    const phone = order.shippingAddress.phone.replace(/[^0-9]/g, '');
+
+    // WhatsApp Message
+    const message = encodeURIComponent(
+      `Hi ${order.shippingAddress.firstName},\n\n` +
+      `Thank you for your purchase 🥰 Here are your order details:\n\n` +
+      `🧾 *Order ID:* #${order._id}\n\n` +
+      `📦 *Products ordered:*\n${order.items.map(item => `${item.name} | ${item.subtitle}`).join('\n')}\n\n` +
+      `🚚 *Tracking link:* ${order.trackingUrl || 'N/A'}\n\n` +
+      `🕐 *Note:* Your order will be delivered in the next 4–7 working days.\n\n` +
+      `🎉 Congratulations on being a part of donating 1 Menstrual Cup to someone in need!\n\n` +
+      `✅ At TRU HAIR & SKIN, we handpick natural ingredients tailored just for you.`
+    );
+    
+    const whatsappLink = `https://wa.me/91${phone}?text=${message}`;
+    
+
+    res.json({
+      success: true,
+      message: 'Order status updated',
+      data: {
+        order,
+        whatsappLink
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
   
+// Get all orders (admin only)
+exports.getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .populate('user', 'firstName lastName email')
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, data: orders });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Get detailed order by ID (admin only)
+exports.getOrderDetailsById = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'firstName lastName email');
+    
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    res.json({ success: true, data: order });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
