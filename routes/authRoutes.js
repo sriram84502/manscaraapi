@@ -10,6 +10,8 @@ const loginLimiter = rateLimit({
   message: 'Too many login attempts. Please try again later.'
 });
 
+router.post('/send-otp', authController.sendPasswordResetOTP);
+router.post('/reset-password', authController.resetPasswordWithOTP);
 router.post('/register', authController.register);
 router.post('/login', loginLimiter, authController.login);
 router.post('/logout', authController.logout);

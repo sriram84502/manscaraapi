@@ -23,6 +23,12 @@ const userSchema = new mongoose.Schema({
   profilePicture: { type: String, default: '' },
   isAdmin: { type: Boolean, default: false },
   addresses: { type: [addressSchema], default: [] },
+  resetToken: {
+    type: String
+  },
+  resetTokenExpiry: {
+    type: Date
+  },
   cart: {
     items: [
       {
