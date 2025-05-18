@@ -39,6 +39,7 @@ app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/coupons', require('./routes/couponRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/reviews', require('./routes/reviewRoutes'));
+app.use('/api/admin/users', require('./routes/adminUserRoutes'));
 // Add other route files similarly
 
 const PORT = process.env.PORT || 5050;
