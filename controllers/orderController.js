@@ -131,7 +131,9 @@ exports.createOrder = async (req, res) => {
     `;
 
     try {
-      await sendEmail(user.email, 'Your Order Confirmation', orderSummary);
+      const guestEmail = shippingAddress.email || user.email;
+      await sendEmail(guestEmail, 'Your Order Confirmation', orderSummary);
+      // await sendEmail(user.email, 'Your Order Confirmation', orderSummary);
       await sendEmail(process.env.ADMIN_EMAIL, `New Order from ${user.email}`, orderSummary);
     } catch (emailErr) {
       console.error('Email sending failed:', emailErr.message);
