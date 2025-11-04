@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   createOrder,
+  createGuestOrder,
   getUserOrders,
   getOrderById,
   getAllOrders,
@@ -11,7 +12,10 @@ const {
 } = require('../controllers/orderController');
 const { protect, admin } = require('../middlewares/authMiddleware');
 
-// User routes
+// Guest checkout - no auth required
+router.post('/guest', createGuestOrder);
+
+// User routes - auth required
 router.post('/', protect, createOrder);
 router.get('/', protect, getUserOrders);
 router.get('/:id', protect, getOrderById);

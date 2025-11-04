@@ -4,7 +4,135 @@ const sendEmail = require('../utils/sendEmail');
 const generateInvoice = require('../utils/generateInvoice');
 const path = require('path');
 
-// Create order after payment
+// Create guest order (no authentication required)
+exports.createGuestOrder = async (req, res) => {
+  try {
+    const { cart, shippingAddress, couponCode, paymentMethod } = req.body;
+
+    if (!cart || !cart.items || cart.items.length === 0) {
+      return res.status(400).json({ success: false, message: 'Cart is empty' });
+    }
+
+    const subtotal = cart.subtotal || cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const tax = +(subtotal * 0.18).toFixed(2);
+    const shippingCost = subtotal > 100 ? 0 : 20;
+
+    let appliedCoupon = null;
+    if (couponCode) {
+      const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
+
+      if (!coupon) {
+        return res.status(400).json({ success: false, message: 'Invalid or inactive coupon' });
+      }
+
+      if (new Date(coupon.expiryDate) < new Date()) {
+        return res.status(400).json({ success: false, message: 'Coupon has expired' });
+      }
+
+      if (subtotal < coupon.minimumPurchase) {
+        return res.status(400).json({ success: false, message: `Minimum purchase ₹${coupon.minimumPurchase} required` });
+      }
+
+      appliedCoupon = coupon;
+    }
+
+    const discountAmount = appliedCoupon
+      ? +(subtotal * (appliedCoupon.discountPercentage / 100)).toFixed(2)
+      : 0;
+
+    const total = +(subtotal + tax + shippingCost - discountAmount).toFixed(2);
+
+    // Create order without user association
+    const order = await Order.create({
+      items: cart.items.map(item => ({
+        productId: item.productId,
+        name: item.name,
+        subtitle: item.subtitle,
+        price: item.price,
+        quantity: item.quantity,
+        image: item.image
+      })),
+      shippingAddress,
+      paymentMethod,
+      subtotal,
+      tax,
+      shippingCost,
+      discountAmount,
+      total,
+      couponCode,
+      trackingNumber: `TRK${Math.floor(1000000 + Math.random() * 9000000)}`,
+      trackingUrl: `https://www.bluedart.com/tracking/${Math.floor(1000000 + Math.random() * 9000000)}`
+    });
+
+    const orderSummary = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; padding: 20px;">
+        <h2 style="color: #4CAF50;">🛒 Manscara - Order Confirmation</h2>
+        <p>Thank you for your purchase! Your order <strong>#${order._id}</strong> has been placed successfully.</p>
+
+        <h3>📦 Order Summary:</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f5f5f5;">
+              <th style="padding: 8px; border: 1px solid #ccc;">Product</th>
+              <th style="padding: 8px; border: 1px solid #ccc;">Qty</th>
+              <th style="padding: 8px; border: 1px solid #ccc;">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.items.map(item => `
+              <tr>
+                <td style="padding: 8px; border: 1px solid #ccc;">${item.name}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">${item.quantity}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">₹${item.price.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <h3>💰 Total: ₹${order.total.toFixed(2)}</h3>
+        <p><strong>Discount Applied:</strong> ₹${order.discountAmount.toFixed(2)}</p>
+
+        <h3>🚚 Shipping Address:</h3>
+        <p>
+          ${order.shippingAddress.firstName} ${order.shippingAddress.lastName}<br/>
+          ${order.shippingAddress.address}, ${order.shippingAddress.city}<br/>
+          ${order.shippingAddress.region} - ${order.shippingAddress.postalCode}, ${order.shippingAddress.country}<br/>
+          Phone: ${order.shippingAddress.phone}
+        </p>
+
+        <h3>📦 Track Your Order:</h3>
+        <p>
+          Tracking Number: <strong>${order.trackingNumber}</strong><br/>
+          <a href="${order.trackingUrl}" style="color: #4CAF50;">Click here to track your order</a>
+        </p>
+
+        <hr/>
+        <p style="font-size: 14px; color: #888;">Need help? Reply to this email or contact support at support@manscara.com</p>
+      </div>
+    `;
+
+    try {
+      const guestEmail = shippingAddress.email;
+      if (guestEmail) {
+        await sendEmail(guestEmail, 'Your Order Confirmation', orderSummary);
+      }
+      await sendEmail(process.env.ADMIN_EMAIL, `New Guest Order`, orderSummary);
+    } catch (emailErr) {
+      console.error('Email sending failed:', emailErr.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Order placed successfully',
+      data: order
+    });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Create order after payment (authenticated users)
 exports.createOrder = async (req, res) => {
   try {
     const { shippingAddress, saveShippingAddress, couponCode, paymentMethod } = req.body;
@@ -186,7 +314,7 @@ exports.downloadInvoice = async (req, res) => {
 
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename=invoice_${order._id}.pdf`,
+      'Content-Disposition': 'attachment; filename=invoice_' + order._id + '.pdf',
       'Content-Length': buffer.length
     });
 
@@ -219,17 +347,17 @@ exports.updateOrderStatus = async (req, res) => {
 
     // WhatsApp Message
     const message = encodeURIComponent(
-      `Hi ${order.shippingAddress.firstName},\n\n` +
-      `Thank you for your purchase 🥰 Here are your order details:\n\n` +
-      `🧾 *Order ID:* #${order._id}\n\n` +
-      `📦 *Products ordered:*\n${order.items.map(item => `${item.name} | ${item.subtitle}`).join('\n')}\n\n` +
-      `🚚 *Tracking link:* ${order.trackingUrl || 'N/A'}\n\n` +
-      `🕐 *Note:* Your order will be delivered in the next 4–7 working days.\n\n` +
-      `🎉 Congratulations on being a part of donating 1 Menstrual Cup to someone in need!\n\n` +
-      `✅ At TRU HAIR & SKIN, we handpick natural ingredients tailored just for you.`
+      "Hi " + order.shippingAddress.firstName + ",\\n\\n" +
+      "Thank you for your purchase 🥰 Here are your order details:\\n\\n" +
+      "🧾 *Order ID:* #" + order._id + "\\n\\n" +
+      "📦 *Products ordered:*\\n" + order.items.map(item => item.name + " | " + item.subtitle).join('\\n') + "\\n\\n" +
+      "🚚 *Tracking link:* " + (order.trackingUrl || 'N/A') + "\\n\\n" +
+      "🕐 *Note:* Your order will be delivered in the next 4–7 working days.\\n\\n" +
+      "🎉 Congratulations on being a part of donating 1 Menstrual Cup to someone in need!\\n\\n" +
+      "✅ At TRU HAIR & SKIN, we handpick natural ingredients tailored just for you."
     );
     
-    const whatsappLink = `https://wa.me/91${phone}?text=${message}`;
+    const whatsappLink = "https://wa.me/91" + phone + "?text=" + message;
     
 
     res.json({

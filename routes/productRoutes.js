@@ -3,10 +3,10 @@ const router = express.Router();
 const productController = require('../controllers/productController');
 const { protect, admin } = require('../middlewares/authMiddleware');
 
-// GET all products with filtering, pagination, sorting
+// GET all products with filtering, pagination, sorting - no auth required
 router.get('/', productController.getAllProducts);
 
-// GET product by ID
+// GET product by ID - no auth required
 router.get('/:id', productController.getProductById);
 
 // CREATE a new product — only admin

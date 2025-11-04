@@ -9,9 +9,11 @@ const {
 } = require('../controllers/couponController');
 const { protect, admin } = require('../middlewares/authMiddleware');
 
-// User routes
+// Validate coupon - user auth required
 router.post('/validate', protect, validateCoupon);
-router.get('/', protect, getAvailableCoupons);
+
+// Get all available coupons - no auth required
+router.get('/', getAvailableCoupons);
 
 // Admin routes
 router.post('/', protect, admin, createCoupon);
